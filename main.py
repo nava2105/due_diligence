@@ -13,7 +13,9 @@ from selenium.common.exceptions import TimeoutException
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
+from docx.oxml import OxmlElement, parse_xml
+from docx.shared import RGBColor
+from datetime import date
 
 # Add this new function to handle header image
 def add_header_image(document, image_path):
@@ -35,7 +37,7 @@ def add_header_image(document, image_path):
     header_para.paragraph_format.left_indent = Inches(-1)  # Negative indent to counter page margin
     run = header_para.add_run()
     picture = run.add_picture(image_path, width=Inches(8.27))  # 210mm = 8.27 inches (full A4 width)
-    
+
     # Get the parent element of the picture
     pic = picture._inline.graphic.graphicData.pic
     pic_pr = pic.spPr
@@ -69,14 +71,95 @@ output_dir = 'screenshots'
 os.makedirs(output_dir, exist_ok=True)
 
 # Create Word document
-document = Document()
-# Replace the regular image addition with header image
-add_header_image(document, 'assets/img.png')
-document.add_heading('Formato para documentar las Debidas Diligencias Proveedores', level=0)
-document.add_heading('Resumen ejecutivo', level=2)
-table = document.add_table(1, 2)
-table.cell(0, 0).text = 'Fuente:'
-table.cell(0, 1).text = 'Servicio de Rentas Internas:'
+def format_main_heading(document, text):
+    heading = document.add_heading(text, level=1)
+    heading_paragraph = heading.paragraph_format
+    heading_paragraph.alignment = 1
+    heading_run = heading.runs[0]
+    heading_run.font.name = 'Arial'
+    heading_run.font.size = Pt(11)
+    heading_run.font.bold = True
+    heading_run.font.size = Pt(11)
+    heading_run.font.color.rgb = RGBColor(0, 0, 0)
+    return heading
+
+def format_subheading(document, text):
+    heading = document.add_heading(text, level=2)
+    heading_paragraph = heading.paragraph_format
+    heading_paragraph.alignment = 3
+    heading_run = heading.runs[0]
+    heading_run.font.name = 'Arial'
+    heading_run.font.size = Pt(11)
+    heading_run.font.bold = True
+    heading_run.font.underline = True
+    heading_run.font.color.rgb = RGBColor(0, 0, 0)
+    return heading
+
+def format_subheading2(document, text):
+    heading = document.add_heading(text, level=2)
+    heading_paragraph = heading.paragraph_format
+    heading_paragraph.alignment = 3
+    heading_run = heading.runs[0]
+    heading_run.font.name = 'Arial'
+    heading_run.font.size = Pt(11)
+    heading_run.font.bold = True
+    heading_run.font.color.rgb = RGBColor(0, 0, 0)
+    return heading
+
+def create_source_table(document, second_column_text):
+    table = document.add_table(1, 2)
+    table.cell(0, 0).text = 'Fuente:'
+    table.cell(0, 1).text = second_column_text
+
+# Fix the typo in create_source_table1
+def create_source_table1(document, second_column_text):
+    table = document.add_table(2, 2)
+    table.columns[0].width = Inches(0.6)
+    table.cell(0, 0).text = 'Busqueda:'
+    table.cell(1, 0).text = 'Fecha de Busqueda:'
+    table.cell(0, 1).text = second_column_text  # Fixed 'talbe' to 'table'
+    table.cell(1, 1).text = str(date.today())
+
+def create_source_table2(document):
+    table = document.add_table(5, 2)
+    table.cell(0, 0).text = 'Código de procedimiento'
+    table.cell(1, 0).text = 'Tipo de procedimiento'
+    table.cell(2, 0).text = 'Objeto contractual'
+    table.cell(3, 0).text = 'Presupuesto'
+    table.cell(4, 0).text = 'Estado a la fecha de elaboración'
+
+def create_source_table3(document):
+    table = document.add_table(7, 2)
+    table.cell(0, 0).text = 'Nombre'
+    table.cell(1, 0).text = 'RUC'
+    table.cell(2, 0).text = 'Participación en el procedimiento'
+    table.cell(3, 0).text = 'Domicilio Fiscal'
+    table.cell(4, 0).text = 'Fecha inicio de actividades'
+    table.cell(5, 0).text = 'Actividad económica principal'  # Fixed index from 6 to 5
+    table.cell(6, 0).text = 'Recurrencias'
+
+def create_source_table4(document):
+    table = document.add_table(9, 5)
+    table.cell(0, 0).text = 'N°'
+    table.cell(0, 1).text = 'Riesgos potenciales'
+    table.cell(0, 2).text = 'Hallazgos'
+    table.cell(0, 3).text = 'Página(s)'
+    table.cell(1, 0).text = '1'
+    table.cell(2, 0).text = '2'
+    table.cell(3, 0).text = '3'
+    table.cell(4, 0).text = '4'
+    table.cell(5, 0).text = '5'
+    table.cell(6, 0).text = '6'
+    table.cell(7, 0).text = '7'
+    table.cell(8, 0).text = '8'
+    table.cell(1, 1).text = 'Soborno, corrupción y fraude'
+    table.cell(2, 1).text = 'Relaciones gubernamentales'
+    table.cell(3, 1).text = 'Actividades criminales/ilegales'
+    table.cell(4, 1).text = 'Incumplimiento financiero'
+    table.cell(5, 1).text = 'Asuntos regulatorios'
+    table.cell(6, 1).text = 'Litigios'
+    table.cell(7, 1).text = 'Medios adversos'
+    table.cell(8, 1).text = 'Otros asuntos'
 
 options = Options()
 # options.add_argument('--headless')
@@ -96,6 +179,28 @@ def get_ruc_data(ruc):
     return response.json()
 
 def scrape():
+    # Create Word document at the start of the function
+    document = Document()
+    add_header_image(document, 'assets/img.png')
+
+    # Add initial headings and content
+    format_main_heading(document, 'Formato para documentar las Debidas Diligencias Proveedores')
+    format_subheading(document, 'Resumen ejecutivo')
+
+    # Add initial paragraph
+    paragraph = document.add_paragraph('Debida Diligencia que se realiza en cumplimiento a la ejecución de controles del punto 8.2 del Manual Operativo del Sistema de Gestión Antisoborno, alineado a la Norma ISO 37001:2016 y controles de la Matriz de Riesgos.')
+    paragraph_style = paragraph.paragraph_format
+    paragraph_style.alignment = 3
+
+    format_subheading2(document, 'Información del procedimiento de contratación asociado:')
+    create_source_table2(document)
+
+    format_subheading2(document, 'Información del procedimiento de contratación asociado:')
+    create_source_table3(document)
+    create_source_table4(document)
+
+    # Add initial source table
+    create_source_table(document, 'Servicio de Rentas Internas:')
 
     for i, url in enumerate(urls):
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
@@ -198,13 +303,20 @@ def scrape():
 
                 screenshot_path = os.path.join(output_dir, f'capture_{i + 1}.png')
                 driver.save_screenshot(screenshot_path)
-                
+
                 # Add screenshot to Word document
-                document.add_heading(f'Evidence {i + 1}', level=1)
+                # Inside the scrape() function, replace the document formatting with:
+                format_main_heading(document, f'Evidence {i + 1}')
                 document.add_paragraph(f'URL: {url}')
                 document.add_picture(screenshot_path, width=Inches(6))
+                document.add_paragraph('')
+
+                # And in the finally block:
+                # Replace the manual table creation with create_source_table1
+                create_source_table1(document, docs_data[i])
+                document.add_picture(screenshot_path, width=Inches(6))
                 document.add_paragraph('')  # Add some space
-                
+
                 print(f"✅ Captura guardada en: {screenshot_path}\n")
             else:
                 print("⚠️  No se tomará captura por respuesta distinta de 200.\n")
@@ -215,10 +327,10 @@ def scrape():
         finally:
 
 
-            table = document.add_table(2, 2)
-            table.cell(0, 0).text = 'Busqueda:'
-            table.cell(0, 1).text = docs_data[i]
+            # Replace the manual table creation with create_source_table1
+            create_source_table1(document, docs_data[i])
             document.add_picture(screenshot_path, width=Inches(6))
+            document.add_paragraph('')  # Add space after table
             
         driver.quit()
     
