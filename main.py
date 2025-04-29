@@ -16,6 +16,8 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement, parse_xml
 from docx.shared import RGBColor
 from datetime import date
+from flask import Flask, render_template, request, flash, redirect, url_for
+from flask import send_file
 
 urls_sri = [
     'https://srienlinea.sri.gob.ec/sri-en-linea/SriRucWeb/ConsultaRuc/Consultas/consultaRuc',
@@ -25,6 +27,8 @@ urls_sri = [
 url_aduana = 'https://www.aduana.gob.ec/servicio-al-ciudadano/consulta-de-certificado-cumplimiento/'
 url_fiscalia = 'https://www.fiscalia.gob.ec/consulta-de-noticias-del-delito/'
 url_consejo_judicatura = 'https://procesosjudiciales.funcionjudicial.gob.ec/busqueda-filtros'
+url_soce_incumplidos = 'https://www.compraspublicas.gob.ec/ProcesoContratacion/compras/EP/EmpReporteIncumplidos.cpe'
+url_contraloria = 'https://www.contraloria.gob.ec/Consultas/InformesAprobados'
 docs_data = [
     "Consulta de RUC/ Empresas fantasmas del SRI",
     "Estado Tributario",
@@ -361,25 +365,160 @@ def scrape_from_consejo_judicatura(document, ruc):
         screenshot_path = os.path.join(output_dir, f'capture_6.png')
         driver.save_screenshot(screenshot_path)
 
-    create_source_table1(document, 'Liquidaciones vencidas')
+    create_source_table1(document, 'Procesos Judiciales')
     document.add_picture(screenshot_path, width=Inches(6))
     document.add_paragraph('')
 
     driver.quit()
 
+def scrape_from_soce_incumplidos(document, ruc):
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    try:
+        driver.get(url_soce_incumplidos)
+        try:
+            ruc_input = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "ruc"))
+            )
+            print("Input field found")
+            ruc_input.clear()
+            ruc_input.send_keys(ruc)
+        except Exception as e:
+            print(f"Error finding input field: {str(e)}")
+            raise
+        time.sleep(10)
+        try:
+            button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "btnBuscar"))
+            )
+            print("Button found")
+            button.click()
+            print("Button clicked")
+        except Exception as e:
+            print(f"Error with button interaction: {str(e)}")
+            raise
+        time.sleep(15)
+        screenshot_path = os.path.join(output_dir, f'capture_7.png')
+        driver.save_screenshot(screenshot_path)
+
+    except Exception as e:
+        screenshot_path = os.path.join(output_dir, f'capture_6.png')
+        driver.save_screenshot(screenshot_path)
+
+    create_source_table1(document, 'Búsqueda de no ser contratista incumplido o adjudicatario fallido con el Estado')
+    document.add_picture(screenshot_path, width=Inches(6))
+    document.add_paragraph('')
+
+    driver.quit()
+
+def scrape_from_contraloria(document, ruc):
+    data = get_ruc_data(ruc)
+    razon_social = data[0]['razonSocial']
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    try:
+        driver.get(url_contraloria)
+        try:
+            button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.CLASS_NAME, "btn-close"))
+            )
+            print("Button found")
+            button.click()
+            print("Button clicked")
+        except Exception as e:
+            print(f"Error with button interaction: {str(e)}")
+            raise
+        try:
+            ruc_input = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "txtBuscar123_in"))
+            )
+            print("Input field found")
+            ruc_input.clear()
+            ruc_input.send_keys(razon_social)
+        except Exception as e:
+            print(f"Error finding input field: {str(e)}")
+            raise
+        
+        # Wait for any loading overlay to disappear
+        try:
+            WebDriverWait(driver, 10).until_not(
+                EC.presence_of_element_located((By.CLASS_NAME, "blockUI"))
+            )
+        except TimeoutException:
+            print("Loading overlay did not disappear")
+            
+        try:
+            button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "btnBuscar_in"))
+            )
+            # Add a small delay to ensure the button is truly clickable
+            time.sleep(2)
+            driver.execute_script("arguments[0].click();", button)
+            print("Button clicked using JavaScript")
+        except Exception as e:
+            print(f"Error with button interaction: {str(e)}")
+            raise
+            
+        time.sleep(15)
+        screenshot_path = os.path.join(output_dir, f'capture_8.png')
+        driver.save_screenshot(screenshot_path)
+
+    except Exception as e:
+        screenshot_path = os.path.join(output_dir, f'capture_6.png')
+        driver.save_screenshot(screenshot_path)
+
+    create_source_table1(document, 'Informes Aprovados')
+    document.add_picture(screenshot_path, width=Inches(6))
+    document.add_paragraph('')
+
+    driver.quit()
+
+app = Flask(__name__)
+app.secret_key = 'your-secret-key-here'
+@app.route('/', methods=['GET'])
+def index():
+    return render_template('index.html')
+
+@app.route('/generate', methods=['POST'])
+def generate_report():
+    ruc = request.form.get('ruc')
+    
+    if not ruc:
+        flash('Por favor ingrese un RUC', 'error')
+        return redirect(url_for('index'))
+
+    try:
+        if validate_ruc(ruc) == 'true':
+            document = Document()
+            add_format(document, ruc)
+            scrape_from_sri(document, ruc)
+            create_source_table(document, 'Aduana del Ecuador')
+            scrape_from_aduana(document, ruc)
+            create_source_table(document, 'Fiscalía')
+            scrape_from_fiscalia(document, ruc)
+            create_source_table(document, 'Consejo de la Judicatura')
+            scrape_from_consejo_judicatura(document, ruc)
+            create_source_table(document, 'Servicio Nacional de Contratación Pública (SERCOP)')
+            scrape_from_soce_incumplidos(document, ruc)
+            create_source_table(document, 'Contraloria General del Estado')
+            scrape_from_contraloria(document, ruc)
+            
+            # Save the document
+            doc_path = os.path.join(output_dir, f'evidence_report_{ruc}.docx')
+            document.save(doc_path)
+            
+            # Return the file for download
+            return send_file(
+                doc_path,
+                as_attachment=True,
+                download_name=f'evidence_report_{ruc}.docx',
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+        else:
+            flash('RUC no válido', 'error')
+            return redirect(url_for('index'))
+    except Exception as e:
+        flash(f'Error al generar el reporte: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
 if __name__ == '__main__':
-    ruc = "0190340325001"
-    if validate_ruc(ruc) == 'true':
-        document = Document()
-        add_format(document, ruc)
-        scrape_from_sri(document, ruc)
-        create_source_table(document, 'Aduana del Ecuador')
-        scrape_from_aduana(document, ruc)
-        create_source_table(document, 'Fiscalía')
-        scrape_from_fiscalia(document, ruc)
-        create_source_table(document, 'Consejo de la Judicatura')
-        scrape_from_consejo_judicatura(document, ruc)
-        document.save(os.path.join(output_dir, 'evidence_report.docx'))
-        print("Evidence report saved as 'evidence_report.docx'")
-    else:
-        print("RUC no valido")
+    os.makedirs(output_dir, exist_ok=True)
+    app.run(debug=True)

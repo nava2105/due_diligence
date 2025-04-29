@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="text-center">Consulta RUC</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('generate_report') }}" id="rucForm">
+                    <div class="mb-3">
+                        <label for="ruc" class="form-label">RUC</label>
+                        <input type="text" class="form-control" id="ruc" name="ruc" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary" id="submitBtn">Generar Reporte</button>
+                        <div class="text-center mt-3 d-none" id="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Generando reporte, por favor espere...</p>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} mt-3" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('rucForm').addEventListener('submit', function() {
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('loading').classList.remove('d-none');
+});
+</script>
+{% endblock %}
