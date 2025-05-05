@@ -1,0 +1,10 @@
+*
+
+!/Services
+!/Services/*
+!/templates
+!/templates/*
+!/assets
+!/assets/*
+!app.py
+!requirements.txt

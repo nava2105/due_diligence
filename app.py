@@ -1,7 +1,8 @@
 import requests
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.service import Service
+from webdriver_manager.firefox import GeckoDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -176,11 +177,11 @@ def add_format(document, ruc):
     create_source_table4(document)
     create_source_table(document, 'Servicio de Rentas Internas')
 
-# options.add_argument('--headless')
-# options.add_argument('--disable-gpu')
-# options.add_argument('--no-sandbox')
+
 options = Options()
-options.add_argument('--window-size=1920,1080')
+# options.add_argument('--headless')
+options.add_argument('--width=1920')
+options.add_argument('--height=1080')
 
 def validate_ruc(ruc):
     validation_url = f"https://srienlinea.sri.gob.ec/sri-catastro-sujeto-servicio-internet/rest/ConsolidadoContribuyente/existePorNumeroRuc?numeroRuc={ruc}"
@@ -194,7 +195,7 @@ def get_ruc_data(ruc):
 
 def scrape_from_sri(document, ruc):
     for i, url in enumerate(urls_sri):
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
         try:
             driver.get(url)
             try:
@@ -207,6 +208,7 @@ def scrape_from_sri(document, ruc):
             except Exception as e:
                 print(f"Error finding input field: {str(e)}")
                 raise
+                
             try:
                 button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'ui-button-text-only') and .//span[contains(text(), 'Consultar')]]"))
@@ -214,15 +216,65 @@ def scrape_from_sri(document, ruc):
                 print("Button found")
                 button.click()
                 print("Button clicked")
+                
+                # Modified CAPTCHA handling
+                try:
+                    # First try to find the reCAPTCHA iframe
+                    iframes = WebDriverWait(driver, 10).until(
+                        EC.presence_of_all_elements_located((By.TAG_NAME, "iframe"))
+                    )
+                    
+                    captcha_iframe = None
+                    for iframe in iframes:
+                        if 'reCAPTCHA' in iframe.get_attribute('title') or 'recaptcha' in iframe.get_attribute('src'):
+                            captcha_iframe = iframe
+                            break
+                    
+                    if captcha_iframe:
+                        print("CAPTCHA iframe found")
+                        driver.switch_to.frame(captcha_iframe)
+                        
+                        # Wait for either image grid or checkbox
+                        try:
+                            WebDriverWait(driver, 5).until(
+                                EC.presence_of_element_located((By.CLASS_NAME, "rc-imageselect-target"))
+                            )
+                            print("Image CAPTCHA detected")
+                        except:
+                            try:
+                                checkbox = WebDriverWait(driver, 5).until(
+                                    EC.presence_of_element_located((By.CLASS_NAME, "recaptcha-checkbox-border"))
+                                )
+                                checkbox.click()
+                                print("Checkbox CAPTCHA clicked")
+                            except:
+                                print("No standard CAPTCHA elements found")
+                        
+                        # Wait for manual solving
+                        print("Waiting for manual CAPTCHA solution...")
+                        WebDriverWait(driver, 60).until(
+                            lambda x: 'rc-imageselect-error-select-more' not in driver.page_source
+                        )
+                        
+                        # Switch back to main content
+                        driver.switch_to.default_content()
+                        print("CAPTCHA handling completed")
+                    
+                except Exception as e:
+                    print(f"CAPTCHA handling error: {str(e)}")
+                    driver.switch_to.default_content()
+                
             except Exception as e:
                 print(f"Error with button interaction: {str(e)}")
                 raise
+                
+            # Wait for results to load after CAPTCHA
             time.sleep(20)
-            screenshot_path = os.path.join(output_dir, f'capture_{i + 1}.png')
+            screenshot_path = os.path.join(output_dir, 'capture.png')
             driver.save_screenshot(screenshot_path)
 
         except Exception as e:
-            screenshot_path = os.path.join(output_dir, f'capture_{i + 1}.png')
+            screenshot_path = os.path.join(output_dir, 'capture.png')
             driver.save_screenshot(screenshot_path)
 
         create_source_table1(document, docs_data[i])
@@ -232,7 +284,7 @@ def scrape_from_sri(document, ruc):
         driver.quit()
 
 def scrape_from_aduana(document, ruc):
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver = webdriver.Chrome(service=Service(GeckoDriverManager().install()), options=options)
     try:
         driver.get(url_aduana)
         try:
@@ -256,11 +308,11 @@ def scrape_from_aduana(document, ruc):
             print(f"Error with button interaction: {str(e)}")
             raise
         time.sleep(15)
-        screenshot_path = os.path.join(output_dir, f'capture_4.png')
+        screenshot_path = os.path.join(output_dir, 'capture.png')
         driver.save_screenshot(screenshot_path)
 
     except Exception as e:
-        screenshot_path = os.path.join(output_dir, f'capture_4.png')
+        screenshot_path = os.path.join(output_dir, 'capture.png')
         driver.save_screenshot(screenshot_path)
 
     create_source_table1(document, 'Liquidaciones vencidas')
@@ -270,7 +322,7 @@ def scrape_from_aduana(document, ruc):
     driver.quit()
 
 def scrape_from_fiscalia(document, ruc):
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver = webdriver.Chrome(service=Service(GeckoDriverManager().install()), options=options)
     try:
         driver.get(url_fiscalia)
         time.sleep(10)
@@ -307,12 +359,12 @@ def scrape_from_fiscalia(document, ruc):
         driver.switch_to.default_content()
         
         time.sleep(10)
-        screenshot_path = os.path.join(output_dir, f'capture_5.png')
+        screenshot_path = os.path.join(output_dir, 'capture.png')
         driver.save_screenshot(screenshot_path)
 
     except Exception as e:
         print(f"General error in scrape_from_fiscalia: {str(e)}")
-        screenshot_path = os.path.join(output_dir, f'capture_5.png')
+        screenshot_path = os.path.join(output_dir, 'capture.png')
         driver.save_screenshot(screenshot_path)
 
     create_source_table1(document, 'Procesos Fiscales')
@@ -322,7 +374,7 @@ def scrape_from_fiscalia(document, ruc):
     driver.quit()
 
 def scrape_from_consejo_judicatura(document, ruc):
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver = webdriver.Chrome(service=Service(GeckoDriverManager().install()), options=options)
     try:
         driver.get(url_consejo_judicatura)
         try:
@@ -358,11 +410,11 @@ def scrape_from_consejo_judicatura(document, ruc):
             print(f"Error with button interaction: {str(e)}")
             raise
         time.sleep(5)
-        screenshot_path = os.path.join(output_dir, f'capture_6.png')
+        screenshot_path = os.path.join(output_dir, 'capture.png')
         driver.save_screenshot(screenshot_path)
 
     except Exception as e:
-        screenshot_path = os.path.join(output_dir, f'capture_6.png')
+        screenshot_path = os.path.join(output_dir, 'capture.png')
         driver.save_screenshot(screenshot_path)
 
     create_source_table1(document, 'Procesos Judiciales')
@@ -372,7 +424,7 @@ def scrape_from_consejo_judicatura(document, ruc):
     driver.quit()
 
 def scrape_from_soce_incumplidos(document, ruc):
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver = webdriver.Chrome(service=Service(GeckoDriverManager().install()), options=options)
     try:
         driver.get(url_soce_incumplidos)
         try:
@@ -397,11 +449,11 @@ def scrape_from_soce_incumplidos(document, ruc):
             print(f"Error with button interaction: {str(e)}")
             raise
         time.sleep(15)
-        screenshot_path = os.path.join(output_dir, f'capture_7.png')
+        screenshot_path = os.path.join(output_dir, 'capture.png')
         driver.save_screenshot(screenshot_path)
 
     except Exception as e:
-        screenshot_path = os.path.join(output_dir, f'capture_6.png')
+        screenshot_path = os.path.join(output_dir, 'capture.png')
         driver.save_screenshot(screenshot_path)
 
     create_source_table1(document, 'Búsqueda de no ser contratista incumplido o adjudicatario fallido con el Estado')
@@ -413,7 +465,7 @@ def scrape_from_soce_incumplidos(document, ruc):
 def scrape_from_contraloria(document, ruc):
     data = get_ruc_data(ruc)
     razon_social = data[0]['razonSocial']
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver = webdriver.Chrome(service=Service(GeckoDriverManager().install()), options=options)
     try:
         driver.get(url_contraloria)
         try:
@@ -458,14 +510,14 @@ def scrape_from_contraloria(document, ruc):
             raise
             
         time.sleep(15)
-        screenshot_path = os.path.join(output_dir, f'capture_8.png')
+        screenshot_path = os.path.join(output_dir, 'capture.png')
         driver.save_screenshot(screenshot_path)
 
     except Exception as e:
-        screenshot_path = os.path.join(output_dir, f'capture_6.png')
+        screenshot_path = os.path.join(output_dir, 'capture.png')
         driver.save_screenshot(screenshot_path)
 
-    create_source_table1(document, 'Informes Aprovados')
+    create_source_table1(document, 'Informes Aprobados')
     document.add_picture(screenshot_path, width=Inches(6))
     document.add_paragraph('')
 
@@ -498,7 +550,7 @@ def generate_report():
             scrape_from_consejo_judicatura(document, ruc)
             create_source_table(document, 'Servicio Nacional de Contratación Pública (SERCOP)')
             scrape_from_soce_incumplidos(document, ruc)
-            create_source_table(document, 'Contraloria General del Estado')
+            create_source_table(document, 'Contraloría General del Estado')
             scrape_from_contraloria(document, ruc)
             
             # Save the document
@@ -521,4 +573,4 @@ def generate_report():
 
 if __name__ == '__main__':
     os.makedirs(output_dir, exist_ok=True)
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
