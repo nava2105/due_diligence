@@ -31,8 +31,23 @@ due_diligence is a web scraping tool designed to take screenshots of the informa
   - [Búsqueda de no ser contratista incumplido o adjudicatario fallido con el Estado](https://www.compraspublicas.gob.ec/ProcesoContratacion/compras/EP/EmpReporteIncumplidos.cpe)
 - **Contraloría General del Estado**
   - [Informes Aprobados](https://www.contraloria.gob.ec/Consultas/InformesAprobados)
-- More to come ...
+- **Secretaria de Educación superior, ciencia, tecnología e innovación (SENESCYT)**
+  - [Consulta de formación académica](https://www.senescyt.gob.ec/web/guest/consultas)
 
+More to come ...
+- **Offshore Leaks Database (ICIJ)**
+  - [Participaciones en empresas registradas en paraísos fiscales](https://offshoreleaks.icij.org/power-players)
+- **Office of Foreign Assets Control (OFAC)**
+  - [Lista de Sanciones de Estados Unidos](https://sanctionssearch.ofac.treas.gov/)
+- **Ministerio del Interior**
+  - [Consulta de antecedentes penales](https://certificados.ministeriodelinterior.gob.ec/gestorcertificados/antecedentes/)
+  - [Impedimentos Migración](https://impedimentos.migracion.gob.ec/simiec-consultaImpedimentos/)
+- **Superintendencia de Compañías, Valores Y Seguros**
+  - [Acciones o administraciones](https://www.supercias.gob.ec/portalscvs/index.htm)
+- **Contraloría General del Estado**
+  - [Declaraciones Juradas](https://www.contraloria.gob.ec/Consultas/DeclaracionesJuradas)
+- **Ministerio del Trabajo**
+  - [Dependencia Laboral](https://calculadoras.trabajo.gob.ec/dependencia)
 ## Theoretical Framework
 - **Due Diligence**: Due diligence is a pre-transaction investigative process aimed at assessing risks and opportunities by thoroughly examining a company or asset to verify expectations and uncover potential issues.
 - **Web Scraping**: The process of extracting data from websites using automated scripts.

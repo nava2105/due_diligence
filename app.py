@@ -30,12 +30,12 @@ url_fiscalia = 'https://www.fiscalia.gob.ec/consulta-de-noticias-del-delito/'
 url_consejo_judicatura = 'https://procesosjudiciales.funcionjudicial.gob.ec/busqueda-filtros'
 url_soce_incumplidos = 'https://www.compraspublicas.gob.ec/ProcesoContratacion/compras/EP/EmpReporteIncumplidos.cpe'
 url_contraloria = 'https://www.contraloria.gob.ec/Consultas/InformesAprobados'
+url_senescyt = 'https://www.senescyt.gob.ec/consulta-titulos-web/faces/vista/consulta/consulta.xhtml'
 docs_data = [
     "Consulta de RUC/ Empresas fantasmas del SRI",
     "Estado Tributario",
     "Deudas firmes e impugnadas"
 ]
-
 output_dir = 'screenshots'
 os.makedirs(output_dir, exist_ok=True)
 
@@ -161,6 +161,41 @@ def create_source_table4(document):
     table.cell(7, 1).text = 'Medios adversos'
     table.cell(8, 1).text = 'Otros asuntos'
 
+def create_source_table5(document, ruc):
+    data = get_ruc_data(ruc)
+    table = document.add_table(4, 2)
+    table.cell(0, 0).text = 'Nombre'
+    table.cell(1, 0).text = 'Identificación'
+    table.cell(2, 0).text = 'Cargo'
+    table.cell(3, 0).text = 'Nacionalidad'
+    table.cell(0, 1).text = data[0]['representantesLegales'][0]['nombre']
+    identification = data[0]['representantesLegales'][0]['identificacion']
+    table.cell(1, 1).text = identification
+    return identification
+
+def create_source_table6(document):
+    table = document.add_table(9, 5)
+    table.cell(0, 0).text = 'N°'
+    table.cell(0, 1).text = 'Riesgos potenciales'
+    table.cell(0, 2).text = 'Hallazgos'
+    table.cell(0, 3).text = 'Página(s)'
+    table.cell(1, 0).text = '1'
+    table.cell(2, 0).text = '2'
+    table.cell(3, 0).text = '3'
+    table.cell(4, 0).text = '4'
+    table.cell(5, 0).text = '5'
+    table.cell(6, 0).text = '6'
+    table.cell(7, 0).text = '7'
+    table.cell(8, 0).text = '8'
+    table.cell(1, 1).text = 'Soborno, corrupción y fraude'
+    table.cell(2, 1).text = 'Relaciones gubernamentales'
+    table.cell(3, 1).text = 'Actividades criminales/ilegales'
+    table.cell(4, 1).text = 'Incumplimiento financiero'
+    table.cell(5, 1).text = 'Asuntos regulatorios'
+    table.cell(6, 1).text = 'Litigios'
+    table.cell(7, 1).text = 'Medios adversos'
+    table.cell(8, 1).text = 'Otros asuntos'
+
 def add_format(document, ruc):
 
     add_header_image(document, 'assets/img.png')
@@ -175,8 +210,13 @@ def add_format(document, ruc):
     format_subheading2(document, 'Información del procedimiento de contratación asociado:')
     create_source_table3(document, ruc)
     create_source_table4(document)
-    create_source_table(document, 'Servicio de Rentas Internas')
 
+def add_format2(document, ruc):
+    format_subheading(document, 'Representante Legal')
+    format_subheading2(document, 'Información del sujeto a revisión:')
+    identification = create_source_table5(document, ruc)
+    create_source_table6(document)
+    return identification
 
 options = Options()
 # options.add_argument('--headless')
@@ -523,6 +563,47 @@ def scrape_from_contraloria(document, ruc):
 
     driver.quit()
 
+def scrape_from_senescyt(document, ruc):
+    driver = webdriver.Chrome(service=Service(GeckoDriverManager().install()), options=options)
+    try:
+        driver.get(url_senescyt)
+        try:
+            ruc_input = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "formPrincipal:identificacion"))
+            )
+            print("Input field found")
+            ruc_input.clear()
+            ruc_input.send_keys(ruc)
+        except Exception as e:
+            print(f"Error finding input field: {str(e)}")
+            raise
+        time.sleep(15)
+        try:
+            button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "formPrincipal:boton-buscar"))
+            )
+            # Add a small delay to ensure the button is truly clickable
+            time.sleep(2)
+            driver.execute_script("arguments[0].click();", button)
+            print("Button clicked using JavaScript")
+        except Exception as e:
+            print(f"Error with button interaction: {str(e)}")
+            raise
+
+        time.sleep(15)
+        screenshot_path = os.path.join(output_dir, 'capture.png')
+        driver.save_screenshot(screenshot_path)
+
+    except Exception as e:
+        screenshot_path = os.path.join(output_dir, 'capture.png')
+        driver.save_screenshot(screenshot_path)
+
+    create_source_table1(document, 'Consulta de formación académica')
+    document.add_picture(screenshot_path, width=Inches(6))
+    document.add_paragraph('')
+
+    driver.quit()
+
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
 @app.route('/', methods=['GET'])
@@ -532,7 +613,7 @@ def index():
 @app.route('/generate', methods=['POST'])
 def generate_report():
     ruc = request.form.get('ruc')
-    
+
     if not ruc:
         flash('Por favor ingrese un RUC', 'error')
         return redirect(url_for('index'))
@@ -540,7 +621,10 @@ def generate_report():
     try:
         if validate_ruc(ruc) == 'true':
             document = Document()
+            doc_name = f'evidence_report_{ruc}.docx'
+            doc_path = os.path.join(output_dir, doc_name)
             add_format(document, ruc)
+            create_source_table(document, 'Servicio de Rentas Internas')
             scrape_from_sri(document, ruc)
             create_source_table(document, 'Aduana del Ecuador')
             scrape_from_aduana(document, ruc)
@@ -552,16 +636,27 @@ def generate_report():
             scrape_from_soce_incumplidos(document, ruc)
             create_source_table(document, 'Contraloría General del Estado')
             scrape_from_contraloria(document, ruc)
-            
-            # Save the document
-            doc_path = os.path.join(output_dir, f'evidence_report_{ruc}.docx')
+            identification = add_format2(document, ruc)
+            ruc = identification + '001'
+            create_source_table(document, 'Servicio de Rentas Internas')
+            scrape_from_sri(document, ruc)
+            create_source_table(document, 'Fiscalía')
+            scrape_from_fiscalia(document, ruc)
+            scrape_from_fiscalia(document, identification)
+            create_source_table(document, 'Consejo de la Judicatura')
+            scrape_from_consejo_judicatura(document, ruc)
+            scrape_from_consejo_judicatura(document, identification)
+            create_source_table(document, 'Servicio Nacional de Contratación Pública (SERCOP)')
+            scrape_from_soce_incumplidos(document, ruc)
+            create_source_table(document, 'Ministerio del Interior')
+            create_source_table(document, 'Secretaria de Educación superior, ciencia, tecnología e innovación (SENESCYT)')
+            scrape_from_senescyt(document, identification)
             document.save(doc_path)
-            
-            # Return the file for download
+
             return send_file(
                 doc_path,
                 as_attachment=True,
-                download_name=f'evidence_report_{ruc}.docx',
+                download_name=doc_name,
                 mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             )
         else:
